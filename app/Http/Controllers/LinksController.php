@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StorelinksRequest;
 use App\Models\Links;
+use GuzzleHttp\Client;
+use Symfony\Component\DomCrawler\Crawler;
 
 class LinksController extends Controller
 {
@@ -44,6 +46,44 @@ class LinksController extends Controller
      */
     public function show(links $links)
     {
-        return redirect($links->url);
+
+        $metaData = getMetaData($links->url);
+
+        return view('links.show', [
+            'longUrl' => $links->url,
+            'title' => $metaData['title'],
+            'description' => $metaData['description'],
+            'image' => $metaData['image'],
+        ]);
     }
+}
+
+function getMetaData($url)
+{
+    $client = new Client();
+    $response = $client->request('GET', $url);
+    $html = (string) $response->getBody();
+
+    $crawler = new Crawler($html);
+
+    // Get the title
+    $title = $crawler->filter('title')->count() ? $crawler->filter('title')->text() : '';
+
+    // Get the description
+    $description = '';
+    $crawler->filter('meta[name="description"]')->each(function (Crawler $node) use (&$description) {
+        $description = $node->attr('content');
+    });
+
+    // Get the image
+    $image = '';
+    $crawler->filter('meta[property="og:image"]')->each(function (Crawler $node) use (&$image) {
+        $image = $node->attr('content');
+    });
+
+    return [
+        'title' => $title,
+        'description' => $description,
+        'image' => $image,
+    ];
 }
